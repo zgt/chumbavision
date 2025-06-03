@@ -1,4 +1,70 @@
-# Astro Starter Kit: Minimal
+# ChumbaVision
+
+A video sharing platform that allows users to submit and view TikTok and Instagram Reels videos.
+
+## Features
+
+- Submit TikTok and Instagram Reels videos via URL
+- View submitted videos in a responsive grid layout
+- Modern UI with Tailwind CSS
+- Built with Astro and SolidJS
+
+## Prerequisites
+
+- Node.js 18 or later
+- npm or yarn
+- UploadThing account and API key
+
+## Setup
+
+1. Clone the repository:
+```bash
+git clone https://github.com/yourusername/chumbavision.git
+cd chumbavision
+```
+
+2. Install dependencies:
+```bash
+npm install
+```
+
+3. Create a `.env` file in the root directory and add your UploadThing API key:
+```
+UPLOADTHING_SECRET=your_api_key_here
+```
+
+4. Start the development server:
+```bash
+npm run dev
+```
+
+The application will be available at `http://localhost:4321`.
+
+## Project Structure
+
+```
+chumbavision/
+├── src/
+│   ├── components/     # SolidJS components
+│   ├── layouts/        # Astro layouts
+│   ├── lib/           # Utility functions and configurations
+│   ├── pages/         # Astro pages and API routes
+│   └── styles/        # Global styles
+├── public/            # Static assets
+└── package.json
+```
+
+## Contributing
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
 
 ```sh
 npm create astro@latest -- --template minimal
