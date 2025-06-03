@@ -34,7 +34,6 @@ export default function VideoFeed() {
       const data = await response.json();
 
       if (!Array.isArray(data)) {
-        console.error("Received non-array data:", data);
         throw new Error("Invalid data format received from server");
       }
 
@@ -48,7 +47,7 @@ export default function VideoFeed() {
           typeof video.createdAt === "string";
 
         if (!isValid) {
-          console.warn("Invalid video object:", video);
+          // Skip invalid video objects
         }
         return isValid;
       });
@@ -56,7 +55,6 @@ export default function VideoFeed() {
       setVideos(validVideos);
       setError(null);
     } catch (error) {
-      console.error("Error fetching videos:", error);
       setError(
         error instanceof Error ? error.message : "Failed to load videos",
       );

@@ -5,8 +5,7 @@ const f = createUploadthing();
 export const ourFileRouter = {
   videoUploader: f({ video: { maxFileSize: "512MB" } })
     .onUploadComplete(async ({ metadata, file }) => {
-      console.log("Upload complete for userId:", metadata);
-      console.log("File URL:", file.url);
+      // Upload complete callback
     }),
 } satisfies FileRouter;
 
