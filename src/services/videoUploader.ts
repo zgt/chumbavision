@@ -14,18 +14,28 @@ export class VideoUploader {
    */
   async uploadVideoFromUrl(videoUrl: string, originalUrl: string, videoBuffer?: Uint8Array): Promise<UploadResult> {
     try {
+      console.log('Processing video upload:', {
+        hasVideoBuffer: !!videoBuffer,
+        videoUrlType: videoUrl.startsWith('data:') ? 'data URL' : 'HTTP URL',
+        videoUrlLength: videoUrl.length
+      });
+      
       let buffer: Uint8Array;
       
       if (videoBuffer) {
+        console.log('Using pre-downloaded video buffer, size:', videoBuffer.length);
         buffer = videoBuffer;
       } else if (videoUrl.startsWith('data:')) {
+        console.log('Processing data URL...');
         const base64Data = videoUrl.split(',')[1];
         const binaryString = atob(base64Data);
         buffer = new Uint8Array(binaryString.length);
         for (let i = 0; i < binaryString.length; i++) {
           buffer[i] = binaryString.charCodeAt(i);
         }
+        console.log('Converted data URL to buffer, size:', buffer.length);
       } else {
+        console.log('Downloading from HTTP URL...');
         // Download the video with TikTok-specific headers to bypass 403 errors
         const response = await fetch(videoUrl, {
           headers: {
@@ -49,12 +59,15 @@ export class VideoUploader {
         // Get the video as a buffer
         const arrayBuffer = await response.arrayBuffer();
         buffer = new Uint8Array(arrayBuffer);
+        console.log('Downloaded video from HTTP, size:', buffer.length);
       }
       
       // Create a File object for UploadThing
       const file = new File([buffer], this.generateFileName(originalUrl), {
         type: 'video/mp4',
       });
+      
+      console.log('Uploading to UploadThing, file size:', file.size);
 
 
       // Upload to UploadThing
@@ -74,6 +87,7 @@ export class VideoUploader {
         throw new Error('No data returned from UploadThing');
       }
 
+      console.log('Upload successful:', result.data.url);
 
       return {
         fileId: result.data.key,
@@ -83,6 +97,7 @@ export class VideoUploader {
       };
 
     } catch (error) {
+      console.error('Video upload error:', error);
       throw new Error(`Failed to upload video: ${error.message}`);
     }
   }

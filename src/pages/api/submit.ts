@@ -7,6 +7,7 @@ export const POST: APIRoute = async ({ request }) => {
   
   try {
     const { url } = await request.json();
+    console.log('Processing video submission for URL:', url);
     
     // Validate URL
     const tiktokRegex = /^https?:\/\/(www\.)?(tiktok\.com|vm\.tiktok\.com)\/[^\s]*$/;
@@ -20,18 +21,34 @@ export const POST: APIRoute = async ({ request }) => {
     }
 
     // Initialize browser for scraping
+    console.log('Initializing video scraper...');
     await scraper.init();
 
     // Scrape video metadata and URL
+    console.log('Scraping video metadata...');
     const videoMetadata = await scraper.scrapeVideo(url);
     
     if (!videoMetadata.videoUrl) {
       throw new Error('Could not extract video URL from the provided link');
     }
 
+    console.log('Video metadata extracted:', {
+      platform: videoMetadata.platform,
+      title: videoMetadata.title,
+      author: videoMetadata.author,
+      hasVideoUrl: !!videoMetadata.videoUrl,
+      hasBuffer: !!videoMetadata.videoBuffer
+    });
+
     // Upload video to UploadThing
+    console.log('Uploading video to UploadThing...');
     const uploader = new VideoUploader();
     const uploadResult = await uploader.uploadVideoFromUrl(videoMetadata.videoUrl, url, videoMetadata.videoBuffer);
+    
+    console.log('Video uploaded successfully:', {
+      fileId: uploadResult.fileId,
+      fileSize: uploadResult.fileSize
+    });
 
     // Return success response with metadata
     return new Response(
@@ -60,6 +77,8 @@ export const POST: APIRoute = async ({ request }) => {
     );
 
   } catch (error: unknown) {
+    console.error('Error processing video submission:', error);
+    
     // Return appropriate error message
     const errorMessage = error instanceof Error ? error.message : 'Internal server error';
     const statusCode = errorMessage.includes('Invalid URL') ? 400 :
@@ -84,7 +103,7 @@ export const POST: APIRoute = async ({ request }) => {
     try {
       await scraper.close();
     } catch (closeError) {
-      // Ignore close errors
+      console.error('Error closing scraper:', closeError);
     }
   }
 }; 
