@@ -14,6 +14,8 @@ export default function VideoFeed() {
   const [loading, setLoading] = createSignal(true);
   const [error, setError] = createSignal<string | null>(null);
   const [containerRef, setContainerRef] = createSignal<HTMLDivElement | null>(null);
+  const [isTransitioning, setIsTransitioning] = createSignal(false);
+  const [transitionDirection, setTransitionDirection] = createSignal<'up' | 'down'>('down');
 
   const loadVideos = async () => {
     try {
@@ -55,11 +57,18 @@ export default function VideoFeed() {
   };
 
   const handleClick = (event: MouseEvent) => {
-    const container = containerRef();
-    if (!container) return;
+    const target = event.target as HTMLElement;
+    
+    // Don't handle clicks on video controls
+    if (target.tagName === 'VIDEO' || target.closest('video')) {
+      return;
+    }
 
-    const containerWidth = container.clientWidth;
-    const clickX = event.clientX - container.getBoundingClientRect().left;
+    const mainContainer = document.querySelector('.relative.w-screen.h-screen');
+    if (!mainContainer) return;
+
+    const containerWidth = mainContainer.clientWidth;
+    const clickX = event.clientX;
     const isRightClick = clickX > containerWidth / 2;
 
     if (isRightClick) {
@@ -72,42 +81,109 @@ export default function VideoFeed() {
   };
 
   const goToNext = () => {
-    setCurrentIndex((prev) => Math.min(prev + 1, videos().length - 1));
+    if (isTransitioning() || currentIndex() >= videos().length - 1) return;
+    
+    setIsTransitioning(true);
+    setTransitionDirection('down');
+    
+    setTimeout(() => {
+      setCurrentIndex((prev) => Math.min(prev + 1, videos().length - 1));
+      setTimeout(() => {
+        setIsTransitioning(false);
+      }, 100);
+    }, 300);
   };
 
   const goToPrevious = () => {
-    setCurrentIndex((prev) => Math.max(prev - 1, 0));
+    if (isTransitioning() || currentIndex() <= 0) return;
+    
+    setIsTransitioning(true);
+    setTransitionDirection('up');
+    
+    setTimeout(() => {
+      setCurrentIndex((prev) => Math.max(prev - 1, 0));
+      setTimeout(() => {
+        setIsTransitioning(false);
+      }, 100);
+    }, 300);
+  };
+
+  const handleScroll = (event: WheelEvent) => {
+    event.preventDefault();
+    
+    // Throttle scroll events to prevent too rapid navigation
+    const now = Date.now();
+    if (now - lastScrollTime < 300) return;
+    setLastScrollTime(now);
+
+    if (event.deltaY > 0) {
+      // Scrolling down - next video
+      goToNext();
+    } else if (event.deltaY < 0) {
+      // Scrolling up - previous video
+      goToPrevious();
+    }
+  };
+
+  const [lastScrollTime, setLastScrollTime] = createSignal(0);
+
+  const handleKeyDown = (event: KeyboardEvent) => {
+    switch (event.key) {
+      case 'ArrowUp':
+      case 'w':
+      case 'W':
+        event.preventDefault();
+        goToPrevious();
+        break;
+      case 'ArrowDown':
+      case 's':
+      case 'S':
+        event.preventDefault();
+        goToNext();
+        break;
+      case 'ArrowLeft':
+      case 'a':
+      case 'A':
+        event.preventDefault();
+        goToPrevious();
+        break;
+      case 'ArrowRight':
+      case 'd':
+      case 'D':
+        event.preventDefault();
+        goToNext();
+        break;
+    }
   };
 
   onMount(() => {
     loadVideos();
+    
+    // Add scroll event listener
+    const handleWheel = (e: WheelEvent) => handleScroll(e);
+    window.addEventListener('wheel', handleWheel, { passive: false });
+    
+    // Add keyboard event listener
+    const handleKey = (e: KeyboardEvent) => handleKeyDown(e);
+    window.addEventListener('keydown', handleKey);
+    
+    // Cleanup
+    onCleanup(() => {
+      window.removeEventListener('wheel', handleWheel);
+      window.removeEventListener('keydown', handleKey);
+    });
   });
 
   return (
     <div 
-      class="flex justify-center items-center min-h-screen bg-black cursor-pointer"
+      class="relative w-screen h-screen bg-black cursor-pointer"
       onClick={handleClick}
     >
-      <div class="relative flex items-center">
-        {/* Left Arrow */}
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            goToPrevious();
-          }}
-          disabled={currentIndex() === 0}
-          class="absolute left-0 z-10 p-2 rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors disabled:opacity-50 disabled:cursor-not-allowed -translate-x-1/2"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
-          </svg>
-        </button>
-
-        {/* Video Container */}
-        <div 
-          ref={setContainerRef}
-          class="relative w-[390px] h-[844px] bg-black overflow-hidden"
-        >
+      {/* Video Container */}
+      <div 
+        ref={setContainerRef}
+        class="relative w-full h-full bg-black overflow-hidden flex justify-center"
+      >
           {loading() ? (
             <div class="absolute inset-0 flex items-center justify-center">
               <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
@@ -142,70 +218,65 @@ export default function VideoFeed() {
               </div>
             </div>
           ) : (
-            <div class="relative w-full h-full">
-              {videos().map((video, index) => (
-                <div 
-                  class={`absolute inset-0 transition-opacity duration-300 ${
-                    index === currentIndex() ? 'opacity-100' : 'opacity-0 pointer-events-none'
-                  }`}
-                >
-                  <div class="absolute inset-0 bg-black">
-                    <video
-                      src={video.url}
-                      class="w-full h-full object-contain"
-                      controls
-                      playsinline
-                      loop
-                      muted
-                    />
-                  </div>
-                  <div class="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/60 to-transparent text-white">
-                    <div class="flex items-center space-x-4">
-                      <div class="flex-1">
-                        <p class="text-sm font-medium">Source: {video.source}</p>
-                        <p class="text-xs opacity-75">
-                          Added: {new Date(video.createdAt).toLocaleDateString()}
-                        </p>
-                      </div>
-                      <div class="flex space-x-4">
-                        <button 
-                          onClick={(e) => e.stopPropagation()}
-                          class="p-2 rounded-full bg-white/10 hover:bg-white/20 transition-colors"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-                          </svg>
-                        </button>
-                        <button 
-                          onClick={(e) => e.stopPropagation()}
-                          class="p-2 rounded-full bg-white/10 hover:bg-white/20 transition-colors"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-                          </svg>
-                        </button>
+            <div class="relative w-full h-full max-w-md mx-auto overflow-hidden">
+              {videos().map((video, index) => {
+                const isCurrent = index === currentIndex();
+                const isPrevious = index === currentIndex() - 1;
+                const isNext = index === currentIndex() + 1;
+                
+                let translateClass = '';
+                let opacityClass = 'opacity-0 pointer-events-none';
+                
+                if (isCurrent) {
+                  if (isTransitioning()) {
+                    translateClass = transitionDirection() === 'down' 
+                      ? 'translate-y-0 animate-slide-up' 
+                      : 'translate-y-0 animate-slide-down';
+                  } else {
+                    translateClass = 'translate-y-0';
+                  }
+                  opacityClass = 'opacity-100';
+                } else if (isNext && isTransitioning() && transitionDirection() === 'down') {
+                  translateClass = 'translate-y-full animate-slide-up';
+                  opacityClass = 'opacity-100';
+                } else if (isPrevious && isTransitioning() && transitionDirection() === 'up') {
+                  translateClass = '-translate-y-full animate-slide-down';
+                  opacityClass = 'opacity-100';
+                } else {
+                  translateClass = index > currentIndex() ? 'translate-y-full' : '-translate-y-full';
+                }
+                
+                return (
+                  <div 
+                    class={`absolute inset-0 transition-all duration-500 ease-out ${translateClass} ${opacityClass}`}
+                  >
+                    <div class="relative w-full h-full bg-black rounded-lg overflow-hidden">
+                      <video
+                        src={video.url}
+                        class="w-full h-full object-cover"
+                        controls
+                        playsinline
+                        loop
+                        muted
+                      />
+                    </div>
+                    {/* Bottom overlay with video info */}
+                    <div class="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/60 to-transparent text-white opacity-0 hover:opacity-100 transition-opacity duration-300">
+                      <div class="flex items-end justify-between">
+                        <div class="flex-1 max-w-[calc(100%-120px)]">
+                          <p class="text-sm font-medium">Source: {video.source}</p>
+                          <p class="text-xs opacity-75">
+                            Added: {new Date(video.createdAt).toLocaleDateString()}
+                          </p>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
-        </div>
 
-        {/* Right Arrow */}
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            goToNext();
-          }}
-          disabled={currentIndex() === videos().length - 1}
-          class="absolute right-0 z-10 p-2 rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors disabled:opacity-50 disabled:cursor-not-allowed translate-x-1/2"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-          </svg>
-        </button>
       </div>
     </div>
   );

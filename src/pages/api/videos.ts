@@ -66,10 +66,17 @@ export const GET: APIRoute = async () => {
         throw new Error(`Missing URL for file ${file.key}`);
       }
 
+      // Extract platform from filename if available
+      const getPlatformFromFilename = (filename: string): string => {
+        if (filename.includes('tiktok_')) return 'TikTok';
+        if (filename.includes('instagram_')) return 'Instagram';
+        return 'UploadThing';
+      };
+
       const video = {
         id: file.key,
         url: videoUrls.data[index].url,
-        source: 'UploadThing',
+        source: getPlatformFromFilename(file.name),
         createdAt: new Date(file.uploadedAt).toISOString(),
       };
       console.log('Mapped video:', video);
