@@ -12,34 +12,50 @@ export class VideoUploader {
   /**
    * Downloads a video from a URL and uploads it to UploadThing
    */
-  async uploadVideoFromUrl(videoUrl: string, originalUrl: string): Promise<UploadResult> {
+  async uploadVideoFromUrl(videoUrl: string, originalUrl: string, videoBuffer?: Uint8Array): Promise<UploadResult> {
     try {
-      console.log('Downloading video from full URL:', videoUrl);
-      console.log('URL length:', videoUrl.length);
-      console.log('Has parameters:', videoUrl.includes('?') ? 'Yes' : 'No');
+      let buffer: Uint8Array;
       
-      // Download the video
-      const response = await fetch(videoUrl, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Referer': originalUrl,
-        },
-      });
+      if (videoBuffer) {
+        buffer = videoBuffer;
+      } else if (videoUrl.startsWith('data:')) {
+        const base64Data = videoUrl.split(',')[1];
+        const binaryString = atob(base64Data);
+        buffer = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+          buffer[i] = binaryString.charCodeAt(i);
+        }
+      } else {
+        // Download the video with TikTok-specific headers to bypass 403 errors
+        const response = await fetch(videoUrl, {
+          headers: {
+            'User-Agent': 'com.zhiliaoapp.musically/2021600040 (Linux; U; Android 5.0; en_US; SM-N900T; Build/LRX21V; Cronet/TTNetVersion:6c7b701a 2020-04-23 QuicVersion:0144d358 2020-03-24)',
+            'Referer': 'https://www.tiktok.com/',
+            'Accept': 'video/webm,video/ogg,video/*;q=0.9,application/ogg;q=0.7,audio/*;q=0.6,*/*;q=0.5',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Accept-Encoding': 'identity',
+            'Connection': 'keep-alive',
+            'Range': 'bytes=0-',
+            'Sec-Fetch-Dest': 'video',
+            'Sec-Fetch-Mode': 'no-cors',
+            'Sec-Fetch-Site': 'cross-site',
+          },
+        });
 
-      if (!response.ok) {
-        throw new Error(`Failed to download video: ${response.status} ${response.statusText}`);
+        if (!response.ok) {
+          throw new Error(`Failed to download video: ${response.status} ${response.statusText}`);
+        }
+
+        // Get the video as a buffer
+        const arrayBuffer = await response.arrayBuffer();
+        buffer = new Uint8Array(arrayBuffer);
       }
-
-      // Get the video as a buffer
-      const arrayBuffer = await response.arrayBuffer();
-      const buffer = new Uint8Array(arrayBuffer);
       
       // Create a File object for UploadThing
       const file = new File([buffer], this.generateFileName(originalUrl), {
         type: 'video/mp4',
       });
 
-      console.log('Uploading video to UploadThing, size:', file.size);
 
       // Upload to UploadThing
       const uploadResult = await utapi.uploadFiles([file]);
@@ -58,7 +74,6 @@ export class VideoUploader {
         throw new Error('No data returned from UploadThing');
       }
 
-      console.log('Video uploaded successfully:', result.data.url);
 
       return {
         fileId: result.data.key,
@@ -68,7 +83,6 @@ export class VideoUploader {
       };
 
     } catch (error) {
-      console.error('Error uploading video:', error);
       throw new Error(`Failed to upload video: ${error.message}`);
     }
   }
@@ -82,7 +96,6 @@ export class VideoUploader {
         type: 'video/mp4',
       });
 
-      console.log('Uploading video buffer to UploadThing, size:', file.size);
 
       const uploadResult = await utapi.uploadFiles([file]);
       
@@ -108,7 +121,6 @@ export class VideoUploader {
       };
 
     } catch (error) {
-      console.error('Error uploading video buffer:', error);
       throw new Error(`Failed to upload video buffer: ${error.message}`);
     }
   }
