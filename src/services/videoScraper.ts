@@ -10,25 +10,46 @@ export interface VideoMetadata {
   videoBuffer?: Uint8Array;
 }
 
+export class VideoScraperError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'VideoScraperError';
+  }
+}
+
+export class BrowserNotInitializedError extends VideoScraperError {
+  constructor() {
+    super('Browser not initialized. Call init() first.');
+    this.name = 'BrowserNotInitializedError';
+  }
+}
+
+export class VideoDownloadError extends VideoScraperError {
+  constructor(message: string) {
+    super(`Failed to download video: ${message}`);
+    this.name = 'VideoDownloadError';
+  }
+}
+
+export class VideoMetadataError extends VideoScraperError {
+  constructor(message: string) {
+    super(`Failed to extract video metadata: ${message}`);
+    this.name = 'VideoMetadataError';
+  }
+}
+
 export class VideoScraper {
   private browser: Browser | null = null;
+  private token = import.meta.env.BROWSERLESS_TOKEN;
 
   async init() {
-    this.browser = await chromium.launch({ 
-      headless: true,
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-accelerated-2d-canvas',
-        '--no-first-run',
-        '--no-zygote',
-        '--disable-gpu',
-        '--disable-blink-features=AutomationControlled',
-        '--disable-web-security',
-        '--disable-features=VizDisplayCompositor'
-      ]
-    });
+    if (!this.token) {
+      throw new VideoScraperError('BROWSERLESS_TOKEN environment variable is not set');
+    }
+
+    this.browser = await chromium.connectOverCDP(
+      `wss://production-sfo.browserless.io?token=${this.token}`
+    );
   }
 
   async close() {
@@ -50,7 +71,7 @@ export class VideoScraper {
 
   private async scrapeTikTokVideoWithBrowser(url: string): Promise<VideoMetadata> {
     if (!this.browser) {
-      throw new Error('Browser not initialized. Call init() first.');
+      throw new BrowserNotInitializedError();
     }
 
     // Create a context with TikTok mobile app user agent to avoid detection
@@ -78,8 +99,7 @@ export class VideoScraper {
       });
       
       // Remove window.chrome.runtime property
-      // @ts-ignore - Deliberately removing chrome property
-      delete window.chrome;
+      delete (window as any).chrome;
       
       // Mock plugins
       Object.defineProperty(navigator, 'plugins', {
@@ -93,10 +113,16 @@ export class VideoScraper {
       
       // Mock permissions
       const originalQuery = window.navigator.permissions.query;
-      // @ts-ignore - Overriding permissions API for automation detection evasion
-      window.navigator.permissions.query = (parameters) => (
+      window.navigator.permissions.query = (parameters: PermissionDescriptor): Promise<PermissionStatus> => (
         parameters.name === 'notifications' ?
-          Promise.resolve({ state: Notification.permission }) :
+          Promise.resolve({
+            state: Notification.permission,
+            name: 'notifications',
+            onchange: null,
+            addEventListener: () => {},
+            removeEventListener: () => {},
+            dispatchEvent: () => true
+          } as PermissionStatus) :
           originalQuery(parameters)
       );
     });
@@ -249,18 +275,18 @@ export class VideoScraper {
           const response = await fetch(url);
           
           if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            throw new VideoDownloadError(`HTTP ${response.status}: ${response.statusText}`);
           }
           
           const contentLength = response.headers.get('content-length');
           
           if (contentLength && parseInt(contentLength) > 50 * 1024 * 1024) {
-            throw new Error('Video file too large for browser download');
+            throw new VideoDownloadError('Video file too large for browser download');
           }
           
           const reader = response.body?.getReader();
           if (!reader) {
-            throw new Error('No response body reader available');
+            throw new VideoDownloadError('No response body reader available');
           }
           
           const chunks = [];
@@ -274,7 +300,7 @@ export class VideoScraper {
             totalSize += value.length;
             
             if (totalSize > 50 * 1024 * 1024) {
-              throw new Error('Video file too large - exceeds 50MB limit');
+              throw new VideoDownloadError('Video file too large - exceeds 50MB limit');
             }
           }
           
@@ -590,7 +616,7 @@ export class VideoScraper {
     } else if (instagramRegex.test(url)) {
       return this.scrapeInstagramVideo(url);
     } else {
-      throw new Error('Unsupported platform. Only TikTok and Instagram URLs are supported.');
+      throw new VideoScraperError('Unsupported platform. Only TikTok and Instagram URLs are supported.');
     }
   }
 }

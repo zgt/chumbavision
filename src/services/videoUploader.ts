@@ -98,7 +98,8 @@ export class VideoUploader {
 
     } catch (error) {
       console.error('Video upload error:', error);
-      throw new Error(`Failed to upload video: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      throw new Error(`Failed to upload video: ${errorMessage}`);
     }
   }
 
@@ -110,6 +111,7 @@ export class VideoUploader {
       const file = new File([buffer], this.generateFileName(originalUrl), {
         type: 'video/mp4',
       });
+      console.log('Uploading to UploadThing video buffer, file size:', file.size);
 
 
       const uploadResult = await utapi.uploadFiles([file]);
@@ -136,7 +138,8 @@ export class VideoUploader {
       };
 
     } catch (error) {
-      throw new Error(`Failed to upload video buffer: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      throw new Error(`Failed to upload video buffer: ${errorMessage}`);
     }
   }
 
