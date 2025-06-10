@@ -11,7 +11,6 @@ interface UploadThingFile {
 export const GET: APIRoute = async () => {
   try {
     // Get all files from UploadThing
-    const token = process.env.UPLOADTHING_TOKEN;
     const listFilesResponse = await utapi.listFiles();
 
     if (!listFilesResponse || !listFilesResponse.files) {
