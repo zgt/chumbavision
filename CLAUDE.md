@@ -33,6 +33,7 @@ npm run preview  # Preview build locally
 
 **Environment Variables Required:**
 - `UPLOADTHING_TOKEN` - Required for UploadThing API access
+- `APIFY_TOKEN` - Required for Apify API access to scrape TikTok and Instagram videos
 
 **Important Notes:**
 - The app uses SSR mode (`output: 'server'`) with standalone Node.js adapter
